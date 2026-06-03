@@ -204,6 +204,7 @@ Make sure Railway injects:
 - `PORT`
 - `ANTHROPIC_API_KEY`
 - `CORS_ORIGIN` or `FRONTEND_URL`
+- Keep Python-only files like a root `requirements.txt` out of the repo, or Railway may mis-detect the service language.
 
 ### Frontend service
 
