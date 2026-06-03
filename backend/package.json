@@ -5,6 +5,7 @@
   "scripts": {
     "start": "node src/index.js",
     "dev": "nodemon src/index.js",
+    "eval": "node evaluation/runner.js",
     "test": "node -e \"require('./src/utils/claudeClient'); require('./src/utils/logger'); require('./src/pipeline/stage1'); require('./src/pipeline/stage2'); require('./src/pipeline/stage3'); require('./src/pipeline/stage4'); require('./src/pipeline/stage5'); console.log('backend modules loaded')\""
   },
   "keywords": [],
