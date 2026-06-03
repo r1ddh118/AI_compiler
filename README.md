@@ -163,10 +163,40 @@ The runtime simulator writes code strings for:
 
 ### Backend service
 
-Use the `backend/Procfile`:
+Use `backend/railway.toml`:
+
+```toml
+[build]
+builder = "nixpacks"
+buildCommand = "npm install"
+
+[deploy]
+startCommand = "node src/index.js"
+restartPolicyType = "on_failure"
+healthcheckPath = "/health"
+```
+
+Quick deploy flow:
 
 ```bash
-web: npm start
+# Install Railway CLI
+npm install -g @railway/cli
+
+# Login
+railway login
+
+# Create new project
+railway new
+
+# Deploy backend
+cd backend
+railway up
+
+# Set environment variables
+railway variables set ANTHROPIC_API_KEY=your_key_here
+
+# Get backend URL and set in frontend .env
+echo "VITE_API_URL=https://your-backend.railway.app" > ../frontend/.env
 ```
 
 Make sure Railway injects:
@@ -185,6 +215,14 @@ Use the Vite build settings:
 Set frontend env:
 
 - `VITE_API_URL` = Railway backend URL
+
+If you deploy the frontend with Vercel:
+
+```bash
+cd frontend
+npm run build
+npx vercel --prod
+```
 
 ## Notes
 
