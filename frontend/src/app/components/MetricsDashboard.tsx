@@ -1,8 +1,10 @@
 interface Metrics {
-  totalEntities: number;
-  totalEndpoints: number;
-  totalPages: number;
-  processingTime: number;
+  tablesGenerated: number;
+  endpointsGenerated: number;
+  pagesGenerated: number;
+  latencyMs: number;
+  retryCount: number;
+  validationIssuesCount: number;
 }
 
 interface MetricsDashboardProps {
@@ -12,23 +14,23 @@ interface MetricsDashboardProps {
 export default function MetricsDashboard({ metrics }: MetricsDashboardProps) {
   if (!metrics) return null;
 
-  const metricCards = [
-    { label: 'Entities', value: metrics.totalEntities, color: 'indigo' },
-    { label: 'API Endpoints', value: metrics.totalEndpoints, color: 'blue' },
-    { label: 'UI Pages', value: metrics.totalPages, color: 'purple' },
-    { label: 'Time (ms)', value: metrics.processingTime, color: 'green' },
+  const cards = [
+    { label: 'Tables', value: metrics.tablesGenerated },
+    { label: 'Endpoints', value: metrics.endpointsGenerated },
+    { label: 'Pages', value: metrics.pagesGenerated },
+    { label: 'Latency (ms)', value: metrics.latencyMs },
+    { label: 'Retries', value: metrics.retryCount },
+    { label: 'Validation Issues', value: metrics.validationIssuesCount },
   ];
 
   return (
-    <div className="bg-gray-900 border border-gray-800 rounded-lg p-4">
-      <h3 className="text-sm font-medium text-gray-300 mb-4">Metrics</h3>
+    <div className="rounded-lg border border-gray-800 bg-gray-900 p-4">
+      <h3 className="mb-4 text-sm font-medium text-gray-300">Metrics</h3>
       <div className="grid grid-cols-2 gap-3">
-        {metricCards.map((metric, index) => (
-          <div key={index} className="bg-gray-950 border border-gray-800 rounded-lg p-3">
-            <div className="text-2xl font-bold text-${metric.color}-400">
-              {metric.value}
-            </div>
-            <div className="text-xs text-gray-500 mt-1">{metric.label}</div>
+        {cards.map((card) => (
+          <div key={card.label} className="rounded-lg border border-gray-800 bg-gray-950 p-3">
+            <div className="text-2xl font-bold text-indigo-400">{card.value}</div>
+            <div className="mt-1 text-xs text-gray-500">{card.label}</div>
           </div>
         ))}
       </div>

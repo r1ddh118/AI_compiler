@@ -1,6 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 const { info } = require('../utils/logger');
+const { generateCodeBundle } = require('../../../runtime/codeGenerator');
 const { extractIntent } = require('./stage1_intent');
 const { deriveArchitecture } = require('./stage2_architecture');
 const { deriveSchemaConfig } = require('./stage3_schema');
@@ -18,29 +19,15 @@ function writeFile(filePath, content) {
 }
 
 function renderExpressRoutesCode(apiSchema) {
-  const routes = (apiSchema.endpoints || []).map((endpoint) => {
-    const method = String(endpoint.method || 'GET').toLowerCase();
-    const pathName = endpoint.path;
-    return `app.${method}('${pathName}', async (req, res) => {\n  // ${endpoint.id}\n  res.json({ ok: true, ref: '${endpoint.response?.ref || ''}' });\n});`;
-  });
-
-  return `const express = require('express');\nconst router = express.Router();\n\n${routes.join('\n\n')}\n\nmodule.exports = router;\n`;
+  return generateCodeBundle({ api: apiSchema, db: { tables: [] } }).expressRoutesCode;
 }
 
 function renderDrizzleSchemaCode(dbSchema) {
-  const tableBlocks = (dbSchema.tables || []).map((table) => {
-    const columns = (table.columns || [])
-      .map((column) => `  ${column.name}: ${column.type},`)
-      .join('\n');
-    return `export const ${table.name} = pgTable('${table.name}', {\n${columns}\n});`;
-  });
-
-  return `import { pgTable } from 'drizzle-orm/pg-core';\n\n${tableBlocks.join('\n\n')}\n`;
+  return generateCodeBundle({ api: { endpoints: [] }, db: dbSchema }).drizzleSchemaCode;
 }
 
 function renderRuntimeFiles(appConfig) {
-  const expressRoutesCode = renderExpressRoutesCode(appConfig.api);
-  const drizzleSchemaCode = renderDrizzleSchemaCode(appConfig.db);
+  const codeBundle = generateCodeBundle(appConfig);
   const generatedFiles = [
     'spec/app-config.json',
     'runtime/expressRoutes.js',
@@ -49,12 +36,12 @@ function renderRuntimeFiles(appConfig) {
 
   return {
     generatedFiles,
-    expressRoutesCode,
-    drizzleSchemaCode,
+    expressRoutesCode: codeBundle.expressRoutesCode,
+    drizzleSchemaCode: codeBundle.drizzleSchemaCode,
     fileContents: {
       'spec/app-config.json': `${JSON.stringify(appConfig, null, 2)}\n`,
-      'runtime/expressRoutes.js': `${expressRoutesCode}\n`,
-      'runtime/drizzleSchema.ts': `${drizzleSchemaCode}\n`,
+      'runtime/expressRoutes.js': `${codeBundle.expressRoutesCode}\n`,
+      'runtime/drizzleSchema.ts': `${codeBundle.drizzleSchemaCode}\n`,
     },
   };
 }
@@ -149,11 +136,13 @@ async function compileApplication(userRequest, options = {}) {
 
   let validationResult = validateAppConfig(baseAppConfig);
   let finalAppConfig = validationResult.data || baseAppConfig;
+  let retryCount = 0;
 
   if (!validationResult.valid) {
     const repaired = await repairValidationCycles(baseAppConfig, options);
     finalAppConfig = repaired.data;
     validationResult = repaired.validation;
+    retryCount = Array.isArray(repaired.cycles) ? repaired.cycles.length : 0;
   }
 
   if (!validationResult.valid) {
@@ -193,6 +182,7 @@ async function compileApplication(userRequest, options = {}) {
     auth: authResult.data,
     appConfig: finalAppConfig,
     validation: validationResult,
+    retryCount,
     runtime: runtimeResult,
   };
 }

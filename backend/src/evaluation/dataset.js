@@ -1,26 +1,28 @@
-const dataset = [
-  'Build a habit tracker with streaks and reminders.',
-  'Create a team task manager with roles and approvals.',
-  'Make a clinic appointment booking system.',
-  'Build a marketplace for used books with chat.',
-  'Create a student attendance dashboard.',
-  'Make a personal finance tracker with budgets.',
-  'Build a restaurant reservation system with waitlists.',
-  'Create a simple CRM for sales leads.',
-  'Make an event ticketing app with QR check-in.',
-  'Build a job board with employer accounts.',
-  'Create a fitness coaching app with progress photos.',
-  'Make a library inventory system with lending records.',
-  'Build a subscription billing portal.',
-  'Create a travel itinerary planner with collaborators.',
-  'Make a community forum with moderation tools.',
-  'Build an internal helpdesk for IT tickets.',
-  'Create a volunteer coordination platform.',
-  'Make a recipe organizer with shopping lists.',
-  'Build a school homework submission portal.',
-  'Create a lightweight project roadmap tool.',
-];
-
 module.exports = {
-  dataset,
+  normal: [
+    "Build a CRM with login, contacts, dashboard, role-based access, and premium plan with payments. Admins can see analytics.",
+    "Create a project management tool with boards, cards, team members, due dates, and file attachments.",
+    "Build a SaaS invoicing app with clients, invoices, line items, payment tracking, and PDF generation.",
+    "Create an e-commerce platform with products, cart, checkout, orders, and admin inventory management.",
+    "Build a job board where companies post listings and candidates apply. Include ATS features.",
+    "Create a multi-tenant HR system with employees, departments, leave management, and payroll tracking.",
+    "Build a learning management system with courses, lessons, quizzes, student progress, and certificates.",
+    "Create a booking platform for appointments with providers, availability calendar, and reminders.",
+    "Build a community forum with posts, comments, upvotes, tags, moderators, and user badges.",
+    "Create a real estate listing app with properties, agents, favorites, inquiries, and map view."
+  ],
+  vague: [
+    "Build an app for managing things",
+    "I need a website for my business with some features",
+    "Create something like Notion",
+    "Build a social app",
+    "Make a dashboard"
+  ],
+  edge_cases: [
+    "Build an app where users are also admins and admins are also users with no roles",
+    "Create an e-commerce platform but all products are free and payments are required for everything",
+    "Build an app with 50 different user permission levels and each can see a different subset of a shared database",
+    "Create a CRM where contacts can also be users and users can also be contacts and both inherit from Person",
+    "Build a real-time collaborative document editor with offline sync, conflict resolution, and AI suggestions"
+  ]
 };

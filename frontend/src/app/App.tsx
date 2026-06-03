@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useMemo, useState } from 'react';
 import PromptInput from './components/PromptInput';
 import PipelineVisualizer from './components/PipelineVisualizer';
 import MetricsDashboard from './components/MetricsDashboard';
@@ -10,272 +10,157 @@ interface PipelineStage {
   duration?: number;
 }
 
-interface CompilerOutput {
-  appName: string;
-  entities: string[];
-  roles: string[];
-  assumptions: string[];
-  validationStatus: string;
-  dbSchema: any;
-  apiSchema: any;
-  uiSchema: any;
-  generatedCode: { [filename: string]: string };
-  rawJson: any;
+interface CompilerResponse {
+  success?: boolean;
+  stage?: string;
+  appConfig?: {
+    app_name?: string;
+    db?: { tables?: unknown[] };
+    api?: { endpoints?: unknown[] };
+    ui?: { pages?: unknown[] };
+    validation?: {
+      passed?: boolean;
+      issues?: unknown[];
+      warnings?: unknown[];
+      report?: unknown;
+    };
+    runtime?: {
+      express_routes_code?: string;
+      drizzle_schema_code?: string;
+      generated_files?: string[];
+      instructions?: string[];
+    };
+    metadata?: unknown;
+    intent?: unknown;
+    architecture?: unknown;
+    auth?: unknown;
+  };
+  validation?: {
+    passed?: boolean;
+    issues?: unknown[];
+    warnings?: unknown[];
+    report?: unknown;
+  };
+  runtime?: {
+    express_routes_code?: string;
+    drizzle_schema_code?: string;
+    generated_files?: string[];
+    instructions?: string[];
+  };
+  retryCount?: number;
+  error?: string;
 }
 
 interface Metrics {
-  totalEntities: number;
-  totalEndpoints: number;
-  totalPages: number;
-  processingTime: number;
+  tablesGenerated: number;
+  endpointsGenerated: number;
+  pagesGenerated: number;
+  latencyMs: number;
+  retryCount: number;
+  validationIssuesCount: number;
 }
 
+const initialStages: PipelineStage[] = [
+  { name: 'Intent Extraction', status: 'pending' },
+  { name: 'Architecture Design', status: 'pending' },
+  { name: 'Schema Generation', status: 'pending' },
+  { name: 'Validation + Repair', status: 'pending' },
+  { name: 'Runtime Simulation', status: 'pending' },
+];
+
 export default function App() {
-  const [stages, setStages] = useState<PipelineStage[]>([
-    { name: 'Intent Extraction', status: 'pending' },
-    { name: 'Architecture Design', status: 'pending' },
-    { name: 'Schema Generation', status: 'pending' },
-    { name: 'Validation', status: 'pending' },
-    { name: 'Runtime Config', status: 'pending' },
-  ]);
+  const apiBaseUrl = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+  const [stages, setStages] = useState<PipelineStage[]>(initialStages);
   const [isProcessing, setIsProcessing] = useState(false);
-  const [output, setOutput] = useState<CompilerOutput | null>(null);
+  const [output, setOutput] = useState<CompilerResponse['appConfig'] | null>(null);
   const [metrics, setMetrics] = useState<Metrics | null>(null);
+  const [error, setError] = useState('');
 
-  const simulatePipeline = async (prompt: string) => {
-    setIsProcessing(true);
-    setOutput(null);
-    setMetrics(null);
+  const stageLabels = useMemo(() => initialStages.map((stage) => stage.name), []);
 
-    const stageTimings = [1200, 1800, 2200, 1000, 1500];
-    const newStages = [...stages];
-
-    for (let i = 0; i < newStages.length; i++) {
-      newStages[i] = { ...newStages[i], status: 'processing' };
-      setStages([...newStages]);
-
-      await new Promise(resolve => setTimeout(resolve, stageTimings[i]));
-
-      newStages[i] = {
-        ...newStages[i],
-        status: 'completed',
-        duration: stageTimings[i]
-      };
-      setStages([...newStages]);
-    }
-
-    // Simulate compiled output
-    const mockOutput: CompilerOutput = {
-      appName: prompt.split(' ').slice(0, 3).join(' '),
-      entities: ['User', 'Project', 'Task', 'Comment'],
-      roles: ['Admin', 'User', 'Guest'],
-      assumptions: [
-        'PostgreSQL database with standard CRUD operations',
-        'JWT-based authentication',
-        'RESTful API with standard HTTP methods',
-        'React-based frontend with responsive design'
-      ],
-      validationStatus: 'passed',
-      dbSchema: {
-        tables: [
-          {
-            name: 'users',
-            columns: [
-              { name: 'id', type: 'uuid', primaryKey: true },
-              { name: 'email', type: 'varchar(255)', unique: true },
-              { name: 'password_hash', type: 'varchar(255)' },
-              { name: 'role', type: 'varchar(50)' },
-              { name: 'created_at', type: 'timestamp' }
-            ]
-          },
-          {
-            name: 'projects',
-            columns: [
-              { name: 'id', type: 'uuid', primaryKey: true },
-              { name: 'name', type: 'varchar(255)' },
-              { name: 'description', type: 'text' },
-              { name: 'owner_id', type: 'uuid', foreignKey: 'users.id' },
-              { name: 'created_at', type: 'timestamp' }
-            ]
-          }
-        ]
-      },
-      apiSchema: {
-        endpoints: [
-          {
-            path: '/api/auth/login',
-            method: 'POST',
-            body: { email: 'string', password: 'string' },
-            response: { token: 'string', user: 'User' }
-          },
-          {
-            path: '/api/projects',
-            method: 'GET',
-            auth: 'required',
-            response: { projects: 'Project[]' }
-          },
-          {
-            path: '/api/projects/:id',
-            method: 'GET',
-            auth: 'required',
-            response: { project: 'Project' }
-          }
-        ]
-      },
-      uiSchema: {
-        pages: [
-          {
-            path: '/',
-            component: 'HomePage',
-            layout: 'MainLayout',
-            sections: ['Hero', 'Features', 'CTA']
-          },
-          {
-            path: '/dashboard',
-            component: 'DashboardPage',
-            auth: 'required',
-            layout: 'DashboardLayout',
-            sections: ['Sidebar', 'ProjectList', 'Stats']
-          },
-          {
-            path: '/projects/:id',
-            component: 'ProjectDetailPage',
-            auth: 'required',
-            layout: 'DashboardLayout',
-            sections: ['ProjectHeader', 'TaskList', 'Comments']
-          }
-        ]
-      },
-      generatedCode: {
-        'server.js': `const express = require('express');
-const app = express();
-
-app.use(express.json());
-
-// Auth routes
-app.post('/api/auth/login', async (req, res) => {
-  const { email, password } = req.body;
-  // Authentication logic here
-  res.json({ token: 'jwt-token', user: {} });
-});
-
-// Project routes
-app.get('/api/projects', async (req, res) => {
-  // Fetch projects from database
-  res.json({ projects: [] });
-});
-
-app.listen(3001, () => {
-  console.log('Server running on port 3001');
-});`,
-        'schema.sql': `CREATE TABLE users (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  email VARCHAR(255) UNIQUE NOT NULL,
-  password_hash VARCHAR(255) NOT NULL,
-  role VARCHAR(50) NOT NULL,
-  created_at TIMESTAMP DEFAULT NOW()
-);
-
-CREATE TABLE projects (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  name VARCHAR(255) NOT NULL,
-  description TEXT,
-  owner_id UUID REFERENCES users(id),
-  created_at TIMESTAMP DEFAULT NOW()
-);`,
-        'DashboardPage.tsx': `import React from 'react';
-
-export default function DashboardPage() {
-  return (
-    <div className="dashboard">
-      <aside className="sidebar">
-        <nav>
-          <a href="/dashboard">Dashboard</a>
-          <a href="/projects">Projects</a>
-        </nav>
-      </aside>
-      <main>
-        <h1>Dashboard</h1>
-        <div className="project-list">
-          {/* Project list component */}
-        </div>
-      </main>
-    </div>
-  );
-}`
-      },
-      rawJson: {
-        version: '1.0',
-        generated_at: new Date().toISOString(),
-        prompt: prompt
-      }
-    };
-
-    setOutput(mockOutput);
-    setMetrics({
-      totalEntities: mockOutput.entities.length,
-      totalEndpoints: mockOutput.apiSchema.endpoints.length,
-      totalPages: mockOutput.uiSchema.pages.length,
-      processingTime: stageTimings.reduce((a, b) => a + b, 0)
-    });
-
-    setIsProcessing(false);
+  const updateStage = (index: number, status: PipelineStage['status'], duration?: number) => {
+    setStages((current) =>
+      current.map((stage, currentIndex) =>
+        currentIndex === index ? { ...stage, status, duration } : stage
+      )
+    );
   };
 
   const handleSubmit = async (prompt: string) => {
-    // Reset stages
-    setStages(stages.map(s => ({ ...s, status: 'pending', duration: undefined })));
+    setError('');
+    setOutput(null);
+    setMetrics(null);
+    setIsProcessing(true);
+    setStages(initialStages.map((stage) => ({ ...stage, status: 'pending', duration: undefined })));
 
-    // Try backend first, fallback to simulation
+    const startedAt = performance.now();
+
     try {
-      const response = await fetch('http://localhost:3001/compile', {
+      for (let index = 0; index < stageLabels.length; index += 1) {
+        updateStage(index, 'processing');
+      }
+
+      const response = await fetch(`${apiBaseUrl}/api/generate`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ prompt })
+        body: JSON.stringify({ prompt }),
       });
 
-      if (response.ok) {
-        const data = await response.json();
-        // Handle real backend response
-        setOutput(data.output);
-        setMetrics(data.metrics);
-      } else {
-        throw new Error('Backend error');
+      const data = (await response.json()) as CompilerResponse;
+
+      if (!response.ok || !data.success) {
+        throw new Error(data.error || 'Compilation failed');
       }
-    } catch (error) {
-      // Fallback to simulation
-      console.log('Using simulation mode');
-      await simulatePipeline(prompt);
+
+      const latencyMs = Math.round(performance.now() - startedAt);
+      setStages((current) =>
+        current.map((stage) => ({ ...stage, status: 'completed', duration: Math.round(latencyMs / current.length) }))
+      );
+
+      setOutput(data.appConfig || null);
+      setMetrics({
+        tablesGenerated: data.appConfig?.db?.tables?.length || 0,
+        endpointsGenerated: data.appConfig?.api?.endpoints?.length || 0,
+        pagesGenerated: data.appConfig?.ui?.pages?.length || 0,
+        latencyMs,
+        retryCount: data.retryCount || 0,
+        validationIssuesCount: data.validation?.issues?.length || 0,
+      });
+    } catch (submissionError) {
+      setError(submissionError instanceof Error ? submissionError.message : 'Something went wrong');
+      setStages((current) =>
+        current.map((stage, index) =>
+          index === current.length - 1 ? { ...stage, status: 'error' } : stage
+        )
+      );
+    } finally {
+      setIsProcessing(false);
     }
   };
 
   return (
-    <div className="size-full bg-gray-950 text-gray-100 flex">
-      {/* Left Panel */}
-      <div className="w-96 border-r border-gray-800 flex flex-col">
-        <div className="p-6 border-b border-gray-800">
+    <div className="flex h-full w-full bg-gray-950 text-gray-100">
+      <aside className="flex w-96 flex-col border-r border-gray-800">
+        <div className="border-b border-gray-800 p-6">
           <h1 className="text-2xl font-bold text-indigo-400">AI App Compiler</h1>
-          <p className="text-sm text-gray-500 mt-1">
-            Natural Language → Executable App Spec
-          </p>
+          <p className="mt-1 text-sm text-gray-500">Natural Language → Executable App Spec</p>
         </div>
 
-        <div className="flex-1 overflow-auto p-6 space-y-6">
+        <div className="flex-1 space-y-6 overflow-auto p-6">
           <PromptInput onSubmit={handleSubmit} isProcessing={isProcessing} />
           <PipelineVisualizer stages={stages} />
           <MetricsDashboard metrics={metrics} />
+          {error && (
+            <div className="rounded-lg border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-300">
+              {error}
+            </div>
+          )}
         </div>
-      </div>
+      </aside>
 
-      {/* Right Panel */}
-      <div className="flex-1 flex flex-col">
-        <div className="border-b border-gray-800 px-6 py-4 bg-gray-900">
-          <h2 className="text-lg font-semibold text-gray-200">Output Viewer</h2>
-        </div>
-        <div className="flex-1 overflow-hidden">
-          <SchemaViewer output={output} />
-        </div>
-      </div>
+      <main className="flex-1 overflow-auto">
+        <SchemaViewer output={output} />
+      </main>
     </div>
   );
 }
