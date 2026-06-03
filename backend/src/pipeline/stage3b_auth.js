@@ -1,13 +1,6 @@
 const { callClaudeJSON } = require('../utils/claudeClient');
 const { info } = require('../utils/logger');
-const { z } = require('zod');
-
-const AuthConfigSchema = z.object({
-  auth_model: z.string().min(1),
-  roles: z.array(z.string()).default([]),
-  permissions: z.array(z.string()).default([]),
-  business_rules: z.array(z.string()).default([]),
-});
+const { AuthSchema: AuthConfigSchema } = require('../schemas/appConfigSchema');
 
 const AUTH_SYSTEM_PROMPT = `
 You are stage 3b of a compiler-style app generation pipeline.
