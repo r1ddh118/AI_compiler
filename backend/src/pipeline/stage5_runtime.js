@@ -1,12 +1,12 @@
 const fs = require('fs');
 const path = require('path');
-const { info, warn } = require('../utils/logger');
+const { info } = require('../utils/logger');
 const { extractIntent } = require('./stage1_intent');
 const { deriveArchitecture } = require('./stage2_architecture');
 const { deriveSchemaConfig } = require('./stage3_schema');
 const { deriveAuthAndBusinessLogic } = require('./stage3b_auth');
 const { validateAppConfig } = require('./stage4_validation');
-const { repairAppConfig } = require('./stage4b_repair');
+const { repairValidationCycles } = require('./stage4b_repair');
 
 function ensureDir(directoryPath) {
   fs.mkdirSync(directoryPath, { recursive: true });
@@ -17,23 +17,44 @@ function writeFile(filePath, content) {
   fs.writeFileSync(filePath, content, 'utf8');
 }
 
+function renderExpressRoutesCode(apiSchema) {
+  const routes = (apiSchema.endpoints || []).map((endpoint) => {
+    const method = String(endpoint.method || 'GET').toLowerCase();
+    const pathName = endpoint.path;
+    return `app.${method}('${pathName}', async (req, res) => {\n  // ${endpoint.id}\n  res.json({ ok: true, ref: '${endpoint.response?.ref || ''}' });\n});`;
+  });
+
+  return `const express = require('express');\nconst router = express.Router();\n\n${routes.join('\n\n')}\n\nmodule.exports = router;\n`;
+}
+
+function renderDrizzleSchemaCode(dbSchema) {
+  const tableBlocks = (dbSchema.tables || []).map((table) => {
+    const columns = (table.columns || [])
+      .map((column) => `  ${column.name}: ${column.type},`)
+      .join('\n');
+    return `export const ${table.name} = pgTable('${table.name}', {\n${columns}\n});`;
+  });
+
+  return `import { pgTable } from 'drizzle-orm/pg-core';\n\n${tableBlocks.join('\n\n')}\n`;
+}
+
 function renderRuntimeFiles(appConfig) {
+  const expressRoutesCode = renderExpressRoutesCode(appConfig.api);
+  const drizzleSchemaCode = renderDrizzleSchemaCode(appConfig.db);
   const generatedFiles = [
     'spec/app-config.json',
-    'runtime/README.md',
-    'db/schema.json',
-    'api/routes.md',
-    'ui/pages.md',
+    'runtime/expressRoutes.js',
+    'runtime/drizzleSchema.ts',
   ];
 
   return {
     generatedFiles,
+    expressRoutesCode,
+    drizzleSchemaCode,
     fileContents: {
       'spec/app-config.json': `${JSON.stringify(appConfig, null, 2)}\n`,
-      'runtime/README.md': `# Runtime Simulation\n\nThis app spec can scaffold:\n- database tables\n- API endpoints\n- UI pages\n`,
-      'db/schema.json': `${JSON.stringify(appConfig.schema, null, 2)}\n`,
-      'api/routes.md': `${appConfig.architecture.api_surface.map((route) => `- ${route.resource}: ${route.methods.join(', ')}`).join('\n') || '- no routes'}\n`,
-      'ui/pages.md': `${appConfig.intent.ui_pages.map((page) => `- ${page}`).join('\n') || '- no pages'}\n`,
+      'runtime/expressRoutes.js': `${expressRoutesCode}\n`,
+      'runtime/drizzleSchema.ts': `${drizzleSchemaCode}\n`,
     },
   };
 }
@@ -50,6 +71,8 @@ function simulateRuntime(appConfig, outputDir = path.join(process.cwd(), 'genera
     success: true,
     outputDir,
     generated_files: runtime.generatedFiles.map((filePath) => path.join(outputDir, filePath)),
+    express_routes_code: runtime.expressRoutesCode,
+    drizzle_schema_code: runtime.drizzleSchemaCode,
   };
 }
 
@@ -64,7 +87,7 @@ async function compileApplication(userRequest, options = {}) {
     return { stage: 'architecture', intent: intentResult.data, ...architectureResult };
   }
 
-  const schemaResult = await deriveSchemaConfig(architectureResult.data, options);
+  const schemaResult = await deriveSchemaConfig(intentResult.data, architectureResult.data, options);
   if (!schemaResult.success) {
     return {
       stage: 'schema',
@@ -97,21 +120,26 @@ async function compileApplication(userRequest, options = {}) {
     app_name: intentResult.data.app_name,
     intent: intentResult.data,
     architecture: architectureResult.data,
-    schema: schemaResult.data,
+    db: schemaResult.data.db,
+    api: schemaResult.data.api,
+    ui: schemaResult.data.ui,
     auth: authResult.data,
     validation: {
       passed: false,
       issues: [],
       warnings: [],
+      report: {},
     },
     runtime: {
-      entrypoint: 'runtime/README.md',
+      entrypoint: 'runtime/expressRoutes.js',
       generated_files: [],
       instructions: [
-        'Create database tables from schema.tables',
-        'Generate API handlers from architecture.api_surface',
-        'Render UI pages from intent.ui_pages',
+        'Generate Express routes from api.endpoints',
+        'Generate Drizzle ORM schema from db.tables',
+        'Bind UI api_endpoint references to API endpoint ids or METHOD /path values',
       ],
+      express_routes_code: '',
+      drizzle_schema_code: '',
     },
     metadata: {
       generated_at: new Date().toISOString(),
@@ -123,23 +151,9 @@ async function compileApplication(userRequest, options = {}) {
   let finalAppConfig = validationResult.data || baseAppConfig;
 
   if (!validationResult.valid) {
-    warn('stage5_runtime', 'validation failed, attempting repair');
-    const repaired = await repairAppConfig(
-      {
-        appConfig: baseAppConfig,
-        issues: validationResult.issues,
-        warnings: validationResult.warnings,
-      },
-      options
-    );
-
-    if (repaired.success) {
-      finalAppConfig = repaired.data;
-      validationResult = validateAppConfig(finalAppConfig);
-      if (validationResult.data) {
-        finalAppConfig = validationResult.data;
-      }
-    }
+    const repaired = await repairValidationCycles(baseAppConfig, options);
+    finalAppConfig = repaired.data;
+    validationResult = repaired.validation;
   }
 
   if (!validationResult.valid) {
@@ -160,11 +174,14 @@ async function compileApplication(userRequest, options = {}) {
   finalAppConfig.runtime = {
     ...finalAppConfig.runtime,
     generated_files: runtimeResult.generated_files,
+    express_routes_code: runtimeResult.express_routes_code,
+    drizzle_schema_code: runtimeResult.drizzle_schema_code,
   };
   finalAppConfig.validation = {
     passed: true,
     issues: validationResult.issues || [],
     warnings: validationResult.warnings || [],
+    report: validationResult.report || {},
   };
 
   return {
@@ -175,6 +192,7 @@ async function compileApplication(userRequest, options = {}) {
     schema: schemaResult.data,
     auth: authResult.data,
     appConfig: finalAppConfig,
+    validation: validationResult,
     runtime: runtimeResult,
   };
 }
@@ -182,4 +200,6 @@ async function compileApplication(userRequest, options = {}) {
 module.exports = {
   simulateRuntime,
   compileApplication,
+  renderExpressRoutesCode,
+  renderDrizzleSchemaCode,
 };
