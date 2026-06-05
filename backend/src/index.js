@@ -2,6 +2,7 @@ require('dotenv').config();
 
 const express = require('express');
 const cors = require('cors');
+const path = require('path');
 const { info, error } = require('./utils/logger');
 const { compileApplication } = require('./pipeline/stage5');
 
@@ -20,12 +21,6 @@ app.use(
   })
 );
 app.use(express.json({ limit: '2mb' }));
-
-app.get('/', (_req, res) => {
-  res.send(
-    'AI Compiler backend is running. Use /health for health checks and POST /api/generate to compile prompts.'
-  );
-});
 
 app.get('/health', (_req, res) => {
   res.json({ ok: true });
@@ -47,6 +42,13 @@ app.post('/api/generate', async (req, res) => {
   }
 });
 
+// Serve React frontend (must be AFTER API routes)
+app.use(express.static(path.join(__dirname, '../../frontend/dist')));
+app.get('*all', (req, res) => {
+  res.sendFile(path.join(__dirname, '../../frontend/dist', 'index.html'));
+});
+
 app.listen(port, () => {
   info('server', `listening on port ${port}`);
 });
+

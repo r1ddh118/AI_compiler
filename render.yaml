@@ -1,11 +1,10 @@
 services:
   - type: web
     runtime: node
-    name: ai-compiler-backend
-    rootDir: backend
+    name: ai-compiler
     plan: free
-    buildCommand: npm ci
-    startCommand: npm start
+    buildCommand: cd frontend && npm install && npm run build && cd ../backend && npm install
+    startCommand: node backend/src/index.js
     healthCheckPath: /health
     envVars:
       - key: ANTHROPIC_API_KEY
@@ -19,17 +18,3 @@ services:
       - key: ANTHROPIC_TIMEOUT_MS
         value: 120000
 
-  - type: web
-    runtime: static
-    name: ai-compiler-frontend
-    rootDir: frontend
-    plan: free
-    buildCommand: npm ci && npm run build
-    staticPublishPath: dist
-    routes:
-      - type: rewrite
-        source: /api/*
-        destination: https://ai-compiler-backend.onrender.com/api/*
-      - type: rewrite
-        source: /*
-        destination: /index.html
