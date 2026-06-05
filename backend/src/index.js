@@ -21,6 +21,12 @@ app.use(
 );
 app.use(express.json({ limit: '2mb' }));
 
+app.get('/', (_req, res) => {
+  res.send(
+    'AI Compiler backend is running. Use /health for health checks and POST /api/generate to compile prompts.'
+  );
+});
+
 app.get('/health', (_req, res) => {
   res.json({ ok: true });
 });

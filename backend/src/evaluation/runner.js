@@ -1,6 +1,6 @@
 const fs = require('fs');
 const path = require('path');
-const { dataset } = require('./dataset');
+const dataset = require('./dataset');
 const { compileApplication } = require('../pipeline/stage5_runtime');
 
 const OUTPUT_DIR = path.join(process.cwd(), 'evaluation');

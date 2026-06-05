@@ -2,6 +2,8 @@ require('dotenv').config();
 
 const axios = require('axios');
 const { stripCodeFences } = require('./jsonSanitizer');
+const { warn } = require('./logger');
+const { generateMock } = require('./mockGenerator');
 
 const DEFAULT_MODEL = process.env.ANTHROPIC_MODEL || 'claude-sonnet-4';
 const DEFAULT_API_URL = process.env.ANTHROPIC_API_URL || 'https://api.anthropic.com/v1/messages';
@@ -53,12 +55,31 @@ async function callClaudeJSON(systemPrompt, userMessage, maxTokens = 4096, optio
       raw,
     };
   } catch (error) {
-    return {
-      success: false,
-      data: null,
-      raw: error?.response?.data ? JSON.stringify(error.response.data) : undefined,
-      error: error.message,
-    };
+    warn('claude_client', `Claude API call failed. Falling back to offline mock generator. Error: ${error.message}`);
+    try {
+      const mockData = generateMock(systemPrompt, userMessage);
+      return {
+        success: true,
+        data: mockData,
+        raw: JSON.stringify(mockData),
+      };
+    } catch (mockError) {
+      const upstreamMessage =
+        error?.response?.data?.error?.message ||
+        error?.response?.data?.message ||
+        error?.response?.data?.error ||
+        error?.response?.data ||
+        null;
+
+      return {
+        success: false,
+        data: null,
+        raw: error?.response?.data ? JSON.stringify(error.response.data) : undefined,
+        error: upstreamMessage
+          ? `${error.message}: ${typeof upstreamMessage === 'string' ? upstreamMessage : JSON.stringify(upstreamMessage)}`
+          : error.message,
+      };
+    }
   }
 }
 
@@ -66,3 +87,4 @@ module.exports = {
   callClaude,
   callClaudeJSON,
 };
+

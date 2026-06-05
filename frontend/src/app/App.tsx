@@ -69,7 +69,13 @@ const initialStages: PipelineStage[] = [
 ];
 
 export default function App() {
-  const apiBaseUrl = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+  const rawApiBaseUrl = import.meta.env.VITE_API_URL?.trim() || '';
+  const apiBaseUrl =
+    !rawApiBaseUrl ||
+    rawApiBaseUrl.includes('localhost:3001') ||
+    rawApiBaseUrl.includes('127.0.0.1:3001')
+      ? ''
+      : rawApiBaseUrl.replace(/\/$/, '');
   const [stages, setStages] = useState<PipelineStage[]>(initialStages);
   const [isProcessing, setIsProcessing] = useState(false);
   const [output, setOutput] = useState<CompilerResponse['appConfig'] | null>(null);
@@ -106,10 +112,11 @@ export default function App() {
         body: JSON.stringify({ prompt }),
       });
 
-      const data = (await response.json()) as CompilerResponse;
+      const responseText = await response.text();
+      const data = responseText ? (JSON.parse(responseText) as CompilerResponse) : null;
 
-      if (!response.ok || !data.success) {
-        throw new Error(data.error || 'Compilation failed');
+      if (!response.ok || !data?.success) {
+        throw new Error(data?.error || responseText || 'Compilation failed');
       }
 
       const latencyMs = Math.round(performance.now() - startedAt);
