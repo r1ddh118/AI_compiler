@@ -76,7 +76,7 @@ npm run dev
 
 1. Start the backend on `http://localhost:3001`
 2. Start the frontend on the Vite dev server
-3. Set `VITE_API_URL` in the frontend environment to the backend URL if needed
+3. The Vite dev server proxies `/api/*` to the backend automatically
 
 ## Environment variables
 
@@ -99,14 +99,14 @@ Recommended:
 
 ### Frontend
 
-Set:
+Set this only if you want to point the frontend at a custom backend URL:
 
 - `VITE_API_URL`
 
 Example:
 
 ```bash
-VITE_API_URL=https://your-railway-backend.up.railway.app
+VITE_API_URL=https://your-backend.onrender.com
 ```
 
 ## Evaluation framework
@@ -159,74 +159,39 @@ The runtime simulator writes code strings for:
 - Express route scaffolding
 - Drizzle ORM schema scaffolding
 
-## Railway deployment
+## Render deployment
 
-### Backend service
+The repo includes a root `render.yaml` blueprint that defines:
 
-Use `backend/railway.toml`:
+- a Node backend at `backend`
+- a static frontend at `frontend`
+- an `/api/*` rewrite from the frontend to the backend service
 
-```toml
-[build]
-builder = "nixpacks"
-buildCommand = "npm install"
-
-[deploy]
-startCommand = "node src/index.js"
-restartPolicyType = "on_failure"
-healthcheckPath = "/health"
-```
-
-Quick deploy flow:
+Deploy flow:
 
 ```bash
-# Install Railway CLI
-npm install -g @railway/cli
+# Install the Render CLI
+curl -fsSL https://raw.githubusercontent.com/render-oss/cli/refs/heads/main/bin/install.sh | sh
 
-# Login
-railway login
-
-# Create new project
-railway new
-
-# Deploy backend
-cd backend
-railway up
-
-# Set environment variables
-railway variables set ANTHROPIC_API_KEY=your_key_here
-
-# Get backend URL and set in frontend .env
-echo "VITE_API_URL=https://your-backend.railway.app" > ../frontend/.env
+# Validate the blueprint locally
+render blueprints validate render.yaml
 ```
 
-Make sure Railway injects:
+Then, in Render, create a new Blueprint from `render.yaml` or point the Blueprint path at the repo root.
 
-- `PORT`
+The backend service needs:
+
 - `ANTHROPIC_API_KEY`
-- `CORS_ORIGIN` or `FRONTEND_URL`
-- Keep Python-only files like a root `requirements.txt` out of the repo, or Railway may mis-detect the service language.
 
-### Frontend service
+The frontend does not need a public backend URL when deployed through the blueprint, because `/api/*` is rewritten to the backend service on Render.
 
-Use the Vite build settings:
+If you deploy the frontend separately, set:
 
-- **Build command**: `npm run build`
-- **Output directory**: `dist`
-
-Set frontend env:
-
-- `VITE_API_URL` = Railway backend URL
-
-If you deploy the frontend with Vercel:
-
-```bash
-cd frontend
-npm run build
-npx vercel --prod
-```
+- `VITE_API_URL` to your backend URL
 
 ## Notes
 
 - The backend already listens on `process.env.PORT`.
-- The frontend now reads `VITE_API_URL`.
-- Cross-origin requests are restricted via `CORS_ORIGIN` / `FRONTEND_URL`.
+- The frontend uses `/api/generate` by default and can still read `VITE_API_URL` if you provide one.
+- The Vite dev server proxies `/api/*` to `http://localhost:3001`.
+- Cross-origin requests are only needed if you bypass the Render rewrite and call the backend URL directly.
